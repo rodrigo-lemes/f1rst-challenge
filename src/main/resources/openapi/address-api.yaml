@@ -1,0 +1,71 @@
+openapi: 3.0.3
+
+info:
+  title: Address Finder API
+  version: 1.0.0
+  description: API contract-first para consulta de CEP em API externa e gravação do log em banco.
+
+servers:
+  - url: http://localhost:8080
+    description: Local environment
+
+tags:
+  - name: Address
+    description: Operações relacionadas à consulta de CEP.
+
+paths:
+  /address/zip:
+    post:
+      tags:
+        - Address
+      summary: Consulta CEP e grava log
+      description: >
+        Recebe um CEP, consulta uma API externa ou mockada, e grava em banco
+        o horário da consulta e os dados retornados pela API consultada.
+        A operação não retorna os dados do endereço ao consumidor.
+      operationId: genAddressData
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddressZipRequest'
+            examples:
+              validRequestWithMask:
+                summary: CEP válido com máscara
+                value:
+                  zipCode: "13458-870"
+              validRequestWithoutMask:
+                summary: CEP válido sem máscara
+                value:
+                  zipCode: "13458870"
+      responses:
+        '204':
+          description: Consulta realizada e log gravado com sucesso, sem corpo na resposta.
+
+        '400':
+          description: Requisição inválida ou CEP com formato inválido.
+
+        '404':
+          description: CEP válido em formato, mas não encontrado na API externa.
+
+        '500':
+          description: Erro interno ao processar ou gravar a consulta.
+
+        '502':
+          description: Erro ao consultar a API externa de endereço.
+
+components:
+  schemas:
+    AddressZipRequest:
+      type: object
+      required:
+        - zipCode
+      properties:
+        zipCode:
+          type: string
+          description: CEP a ser consultado. Aceita formato com ou sem hífen.
+          example: "13458-870"
+          minLength: 8
+          maxLength: 9
+          pattern: '^\d{5}-?\d{3}$'
