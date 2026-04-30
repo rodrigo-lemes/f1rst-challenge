@@ -30,7 +30,7 @@ public class AddressController implements AddressApi {
         try {
             addressService.genAddressData(addressZipRequest);
 
-            log.info("Address logging process finished sucessfully for zipCode={}", addressZipRequest.getZipCode());
+            log.info("Address logging process finished successfully for zipCode={}", addressZipRequest.getZipCode());
 
             return ResponseEntity.noContent().build();
         } catch (IllegalArgumentException exception) {
