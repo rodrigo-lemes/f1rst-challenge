@@ -1,0 +1,90 @@
+<main class="page">
+  <section class="hero">
+    <div class="hero-content">
+      <span class="eyebrow">Address Finder</span>
+
+      <h1>Verificador de cobertura por CEP</h1>
+
+      <p>
+        Informe um CEP para consultar o endereço, verificar se está dentro da área
+        de cobertura configurada e identificar se os dados vieram da base local ou da API externa.
+      </p>
+
+      <form class="search-card" (ngSubmit)="searchAddress()">
+        <label for="zipCode">CEP</label>
+
+        <div class="input-group">
+          <input
+            id="zipCode"
+            name="zipCode"
+            type="text"
+            [(ngModel)]="zipCode"
+            placeholder="Ex: 13458870 ou 13458-870"
+            maxlength="9"
+          />
+
+          <button type="submit" [disabled]="loading">
+            {{ loading ? 'Buscando...' : 'Buscar' }}
+          </button>
+        </div>
+
+        <small>Formatos aceitos: 00000000 ou 00000-000</small>
+      </form>
+
+      <div *ngIf="errorMessage" class="alert">
+        {{ errorMessage }}
+      </div>
+    </div>
+  </section>
+
+  <section *ngIf="address" class="result-wrapper">
+    <article class="result-card">
+      <header>
+        <div>
+          <span class="section-label">Resultado</span>
+          <h2>{{ address.street || 'Endereço sem logradouro informado' }}</h2>
+        </div>
+
+        <span
+          class="coverage-badge"
+          [class.covered]="address.covered"
+          [class.not-covered]="!address.covered"
+        >
+          {{ address.covered ? 'Coberto' : 'Não coberto' }}
+        </span>
+      </header>
+
+      <div class="info-grid">
+        <div class="info-item">
+          <span>CEP</span>
+          <strong>{{ address.zipCode }}</strong>
+        </div>
+
+        <div class="info-item">
+          <span>Cidade</span>
+          <strong>{{ address.city }}</strong>
+        </div>
+
+        <div class="info-item">
+          <span>Estado</span>
+          <strong>{{ address.state }}</strong>
+        </div>
+
+        <div class="info-item">
+          <span>Bairro</span>
+          <strong>{{ address.neighborhood || '-' }}</strong>
+        </div>
+
+        <div class="info-item wide">
+          <span>Complemento</span>
+          <strong>{{ address.complement || '-' }}</strong>
+        </div>
+
+        <div class="info-item">
+          <span>Origem</span>
+          <strong>{{ address.source === 'DATABASE' ? 'Base local' : 'API externa' }}</strong>
+        </div>
+      </div>
+    </article>
+  </section>
+</main>
