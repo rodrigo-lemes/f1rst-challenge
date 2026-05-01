@@ -14,6 +14,66 @@ tags:
     description: Operações relacionadas à consulta de CEP e verificação de cobertura.
 
 paths:
+  /address:
+    get:
+      tags:
+        - Address
+      summary: Lista endereços consultados
+      description: >
+        Retorna os logs de endereços consultados e persistidos na base local,
+        utilizando paginação. Este endpoint não consulta a API externa; ele apenas
+        lista os registros já gravados em banco.
+      operationId: getAllAddresses
+      parameters:
+        - name: page
+          in: query
+          required: false
+          description: Número da página desejada, iniciando em zero.
+          schema:
+            type: integer
+            format: int32
+            minimum: 0
+            default: 0
+            example: 0
+        - name: size
+          in: query
+          required: false
+          description: Quantidade de registros por página.
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+            maximum: 100
+            default: 10
+            example: 10
+      responses:
+        '200':
+          description: Lista paginada de endereços consultados.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressPageResponse'
+              examples:
+                firstPage:
+                  summary: Primeira página de registros
+                  value:
+                    content:
+                      - zipCode: "13458870"
+                        street: "Estrada do Barreirinho"
+                        complement: "até 1750 - lado par"
+                        neighborhood: "Residencial Mac Knight"
+                        city: "Santa Bárbara D'Oeste"
+                        state: "SP"
+                        covered: true
+                        source: "DATABASE"
+                    page: 0
+                    size: 10
+                    totalElements: 1
+                    totalPages: 1
+                    last: true
+        '400':
+          description: Parâmetros de paginação inválidos.
+
   /address/zip/{zipCode}:
     get:
       tags:
@@ -91,6 +151,51 @@ paths:
 
 components:
   schemas:
+    AddressPageResponse:
+      type: object
+      required:
+        - content
+        - page
+        - size
+        - totalElements
+        - totalPages
+        - last
+      properties:
+        content:
+          type: array
+          description: Lista de endereços retornados na página atual.
+          items:
+            $ref: '#/components/schemas/AddressResponse'
+
+        page:
+          type: integer
+          format: int32
+          description: Número da página atual.
+          example: 0
+
+        size:
+          type: integer
+          format: int32
+          description: Quantidade de registros solicitada por página.
+          example: 10
+
+        totalElements:
+          type: integer
+          format: int64
+          description: Total de registros existentes na base.
+          example: 25
+
+        totalPages:
+          type: integer
+          format: int32
+          description: Total de páginas disponíveis.
+          example: 3
+
+        last:
+          type: boolean
+          description: Indica se a página atual é a última.
+          example: false
+
     AddressResponse:
       type: object
       required:

@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import com.f1rst.challenge.address_finder.api.model.AddressPageResponse;
 
 @CrossOrigin(origins = "http://localhost:4200")
 @RestController
@@ -49,5 +50,16 @@ public class AddressController implements AddressApi {
 
             return ResponseEntity.status(HttpStatus.BAD_GATEWAY).build();
         }
+    }
+
+    @Override
+    public ResponseEntity<AddressPageResponse> getAllAddresses(Integer page, Integer size) {
+        log.info("Starting paginated address search. page={}, size={}", page, size);
+
+        var result = addressService.getAllAddresses(page, size);
+
+        log.info("Paginated address search finished successfully. page={}, size={}", page, size);
+
+        return ResponseEntity.ok(result);
     }
 }

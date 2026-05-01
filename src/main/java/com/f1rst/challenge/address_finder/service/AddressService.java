@@ -1,5 +1,6 @@
 package com.f1rst.challenge.address_finder.service;
 
+import com.f1rst.challenge.address_finder.api.model.AddressPageResponse;
 import com.f1rst.challenge.address_finder.api.model.AddressResponse;
 import com.f1rst.challenge.address_finder.api.model.AddressSource;
 import com.f1rst.challenge.address_finder.client.ViaCepAddressFeignClient;
@@ -8,6 +9,10 @@ import com.f1rst.challenge.address_finder.repository.AddressRepository;
 import com.f1rst.challenge.address_finder.repository.entity.AddressQueryLogEntity;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.ObjectMapper;
 
@@ -50,6 +55,36 @@ public class AddressService {
         }
 
         return getAddressFromExternalApi(normalizedZipCode);
+    }
+
+    public AddressPageResponse getAllAddresses(Integer page, Integer size) {
+        int pageNumber = page == null ? 0 : page;
+        int pageSize = size == null ? 10 : size;
+
+        Pageable pageable = PageRequest.of(
+                pageNumber,
+                pageSize,
+                Sort.by(Sort.Direction.DESC, "searchedAt")
+        );
+
+        Page<AddressQueryLogEntity> addressPage = addressRepository.findAll(pageable);
+
+        AddressPageResponse response = new AddressPageResponse();
+
+        response.setContent(
+                addressPage.getContent()
+                        .stream()
+                        .map(entity -> toAddressResponse(entity, AddressSource.DATABASE))
+                        .toList()
+        );
+
+        response.setPage(addressPage.getNumber());
+        response.setSize(addressPage.getSize());
+        response.setTotalElements(addressPage.getTotalElements());
+        response.setTotalPages(addressPage.getTotalPages());
+        response.setLast(addressPage.isLast());
+
+        return response;
     }
 
     private Optional<AddressResponse> getAddressFromDatabase(String zipCode) {

@@ -1,6 +1,7 @@
 package com.f1rst.challenge.address_finder.controller;
 
 import com.f1rst.challenge.address_finder.repository.AddressRepository;
+import com.f1rst.challenge.address_finder.repository.entity.AddressQueryLogEntity;
 import com.github.tomakehurst.wiremock.client.WireMock;
 import com.github.tomakehurst.wiremock.junit5.WireMockTest;
 import org.junit.jupiter.api.BeforeEach;
@@ -10,6 +11,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+
+import java.time.LocalDateTime;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlEqualTo;
@@ -195,5 +198,56 @@ public class AddressControllerIntegrationTest {
                 .andExpect(status().isBadGateway());
 
         assertEquals(0, addressRepository.count());
+    }
+
+    @Test
+    void shouldReturnPaginatedAddressesFromDatabase() throws Exception {
+        AddressQueryLogEntity firstEntity = new AddressQueryLogEntity();
+        firstEntity.setCep("13458870");
+        firstEntity.setLogradouro("Estrada do Barreirinho");
+        firstEntity.setComplemento("até 1750 - lado par");
+        firstEntity.setBairro("Residencial Mac Knight");
+        firstEntity.setLocalidade("Santa Bárbara D'Oeste");
+        firstEntity.setUf("SP");
+        firstEntity.setCovered(true);
+        firstEntity.setSearchedAt(LocalDateTime.now().minusMinutes(10));
+
+        AddressQueryLogEntity secondEntity = new AddressQueryLogEntity();
+        secondEntity.setCep("69900001");
+        secondEntity.setLogradouro("Avenida Brasil");
+        secondEntity.setComplemento("");
+        secondEntity.setBairro("Centro");
+        secondEntity.setLocalidade("Rio Branco");
+        secondEntity.setUf("AC");
+        secondEntity.setCovered(false);
+        secondEntity.setSearchedAt(LocalDateTime.now());
+
+        addressRepository.save(firstEntity);
+        addressRepository.save(secondEntity);
+
+        mockMvc.perform(get("/address")
+                        .param("page", "0")
+                        .param("size", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(2))
+                .andExpect(jsonPath("$.content[0].zipCode").value("69900001"))
+                .andExpect(jsonPath("$.content[0].city").value("Rio Branco"))
+                .andExpect(jsonPath("$.content[0].state").value("AC"))
+                .andExpect(jsonPath("$.content[0].covered").value(false))
+                .andExpect(jsonPath("$.content[0].source").value("DATABASE"))
+                .andExpect(jsonPath("$.content[1].zipCode").value("13458870"))
+                .andExpect(jsonPath("$.content[1].city").value("Santa Bárbara D'Oeste"))
+                .andExpect(jsonPath("$.content[1].state").value("SP"))
+                .andExpect(jsonPath("$.content[1].covered").value(true))
+                .andExpect(jsonPath("$.content[1].source").value("DATABASE"))
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(10))
+                .andExpect(jsonPath("$.totalElements").value(2))
+                .andExpect(jsonPath("$.totalPages").value(1))
+                .andExpect(jsonPath("$.last").value(true));
+
+        assertEquals(2, addressRepository.count());
+
+        WireMock.verify(0, getRequestedFor(urlEqualTo("/ws/13458870/json/")));
     }
 }
