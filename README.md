@@ -1,10 +1,10 @@
-# Address Finder API
+# Address Finder
 
 Aplicação desenvolvida para o desafio técnico da F1RST/Santander.
 
-O objetivo da aplicação é permitir a busca de um endereço por CEP, verificar se esse endereço está dentro da área de cobertura configurada e gravar o log da consulta em banco de dados.
+O objetivo da aplicação é permitir que o usuário consulte um endereço por CEP, verifique se ele está dentro da área de cobertura configurada e acompanhe os logs das consultas gravadas em banco de dados.
 
-A aplicação foi desenvolvida com abordagem **contract-first**, usando OpenAPI como contrato principal da API.
+A solução foi construída com abordagem **contract-first**, usando OpenAPI como contrato principal da API, backend em Spring Boot e frontend em Angular moderno.
 
 ---
 
@@ -14,7 +14,9 @@ A aplicação resolve o seguinte problema:
 
 > Dado um CEP informado pelo usuário, buscar os dados do endereço, verificar se ele está dentro da área de cobertura da empresa e registrar a consulta em banco de dados.
 
-A regra de cobertura é simples e configurável: a aplicação considera cobertos apenas os estados informados na propriedade `coverage.allowed-states`.
+Além da consulta individual por CEP, a aplicação também disponibiliza uma listagem paginada dos logs já gravados, permitindo visualizar o histórico de consultas realizadas.
+
+A regra de cobertura é configurável pela propriedade `coverage.allowed-states`.
 
 Exemplo:
 
@@ -30,59 +32,25 @@ Nesse cenário:
 
 ---
 
-## 2. Tecnologias utilizadas
+## 2. Funcionalidades disponíveis
 
-### Backend
+### 2.1 Buscar endereço por CEP
 
-- Java 21
-- Spring Boot 4
-- Spring Web MVC
-- Spring Data JPA
-- Spring Cloud OpenFeign
-- H2 Database
-- OpenAPI Generator
-- Springdoc OpenAPI / Swagger UI
-- WireMock
-- JUnit 5
-- Maven
-
-### Frontend (Construido por IA)
-
-- Angular moderno com componentes standalone
-- Angular Signals
-- HttpClient
-- SCSS
-
----
-
-## 3. Desenho da solução
-
-```mermaid
-flowchart TD
-    A[Usuário / Frontend Angular] --> B[AddressController]
-    B --> C[AddressService]
-    C --> D{Existe log anterior para o CEP?}
-    D -- Sim --> E[Busca último registro no H2]
-    E --> F[Cria novo log com novo searchedAt]
-    F --> G[Retorna AddressResponse com source DATABASE]
-    D -- Não --> H[ViaCepAddressFeignClient]
-    H --> I[ViaCEP / WireMock nos testes]
-    I --> J{CEP encontrado?}
-    J -- Não --> K[Retorna 404]
-    J -- Sim --> L[Calcula covered com base nos estados configurados]
-    L --> M[Salva log no H2]
-    M --> N[Retorna AddressResponse com source EXTERNAL_API]
-```
-
----
-
-## 4. Fluxo principal da aplicação
-
-Endpoint principal:
+Endpoint:
 
 ```http
 GET /address/zip/{zipCode}
 ```
+
+Responsabilidade:
+
+- receber um CEP com ou sem hífen;
+- normalizar o CEP para o formato sem hífen;
+- procurar o último log desse CEP na base local;
+- se existir, criar um novo log com os dados já conhecidos e retornar `source: DATABASE`;
+- se não existir, consultar a API externa ViaCEP;
+- se o CEP for encontrado na API externa, calcular a cobertura, gravar o log e retornar `source: EXTERNAL_API`;
+- se o CEP não for encontrado, retornar `404`.
 
 Exemplo:
 
@@ -105,63 +73,295 @@ Resposta esperada:
 }
 ```
 
-### Fluxo detalhado
+### 2.2 Listar logs cadastrados com paginação
 
-1. O usuário informa um CEP no frontend ou chama diretamente a API.
-2. O controller recebe a requisição através do contrato gerado pelo OpenAPI.
-3. O service normaliza o CEP, removendo hífen.
-4. A aplicação consulta o banco local procurando o último log daquele CEP.
-5. Se encontrar:
-   - usa os dados do último registro;
-   - cria um novo log com `searchedAt` atualizado;
-   - retorna o endereço com `source: DATABASE`.
-6. Se não encontrar:
-   - consulta a API externa ViaCEP via Feign Client;
-   - se o CEP não existir, retorna `404`;
-   - se existir, calcula a cobertura;
-   - salva o log no banco;
-   - retorna o endereço com `source: EXTERNAL_API`.
+Endpoint:
 
----
-
-## 5. Regra de cobertura
-
-A cobertura é configurada no `application.yaml`:
-
-```yaml
-coverage:
-  allowed-states: SP,RJ,MG
+```http
+GET /address?page=0&size=10
 ```
 
-A aplicação verifica se o campo `uf` retornado pela API externa está dentro dessa lista.
+Responsabilidade:
+
+- listar os logs já gravados no banco;
+- retornar os dados de forma paginada;
+- ordenar os registros mais recentes primeiro;
+- não consultar a API externa;
+- permitir inspeção do histórico de consultas.
 
 Exemplo:
 
-- `uf = SP` → `covered = true`
-- `uf = AC` → `covered = false`
+```bash
+curl -s "http://localhost:8080/address?page=0&size=10" | jq
+```
 
-Essa abordagem permite adicionar ou remover estados da área de cobertura sem alterar a lógica principal da aplicação.
+Resposta esperada:
+
+```json
+{
+  "content": [
+    {
+      "zipCode": "13458870",
+      "street": "Estrada do Barreirinho",
+      "complement": "até 1750 - lado par",
+      "neighborhood": "Residencial Mac Knight",
+      "city": "Santa Bárbara D'Oeste",
+      "state": "SP",
+      "covered": true,
+      "source": "DATABASE"
+    }
+  ],
+  "page": 0,
+  "size": 10,
+  "totalElements": 1,
+  "totalPages": 1,
+  "last": true
+}
+```
 
 ---
 
-## 6. Contrato OpenAPI
+## 3. Frontend Angular (Criado inteiramente por IA)
 
-O contrato da API fica em:
+O frontend foi criado em Angular moderno, usando componente standalone e `signals` para controle de estado da tela.
 
-```text
-src/main/resources/openapi/address-api.yaml
+A interface possui duas abas principais:
+
+### Buscar CEP
+
+Permite informar um CEP e visualizar:
+
+- CEP normalizado;
+- logradouro;
+- bairro;
+- complemento;
+- cidade;
+- estado;
+- se o endereço está coberto ou não;
+- origem dos dados: `API externa` ou `Base local`.
+
+### Logs cadastrados
+
+Permite visualizar os registros já salvos no banco.
+
+A tela de listagem apresenta:
+
+- CEP;
+- logradouro;
+- cidade;
+- UF;
+- cobertura;
+- origem;
+- paginação.
+
+Essa tela demonstra de forma visual que os logs estão sendo persistidos e podem ser consultados posteriormente.
+
+---
+
+## 4. Desenho da solução
+
+```mermaid
+flowchart TD
+    A[Usuário] --> B[Frontend Angular]
+    B --> C[AddressController]
+    C --> D[AddressService]
+
+    D --> E{Operação solicitada}
+
+    E -- Buscar CEP --> F{Existe log anterior para o CEP?}
+    F -- Sim --> G[Busca último registro no banco]
+    G --> H[Cria novo log com searchedAt atualizado]
+    H --> I[Retorna AddressResponse com source DATABASE]
+
+    F -- Não --> J[ViaCepAddressFeignClient]
+    J --> K[ViaCEP / WireMock nos testes]
+    K --> L{CEP encontrado?}
+    L -- Não --> M[Retorna 404]
+    L -- Sim --> N[Calcula covered]
+    N --> O[Salva log no banco]
+    O --> P[Retorna AddressResponse com source EXTERNAL_API]
+
+    E -- Listar logs --> Q[Consulta banco com paginação]
+    Q --> R[Retorna AddressPageResponse]
+    R --> B
 ```
 
-A aplicação usa geração de código a partir do OpenAPI através do `openapi-generator-maven-plugin`.
+---
 
-O contrato define:
+## 5. Fluxo principal da aplicação
 
-- endpoint `GET /address/zip/{zipCode}`;
-- validação do CEP por `pattern`, `minLength` e `maxLength`;
-- modelo de resposta `AddressResponse`;
-- enum `AddressSource`, indicando se os dados vieram do banco local ou da API externa.
+### Primeira consulta de um CEP
 
-Validação de CEP no contrato:
+```text
+Cliente informa CEP
+↓
+Frontend envia GET /address/zip/{zipCode}
+↓
+Controller recebe a requisição
+↓
+Service normaliza o CEP
+↓
+Repository procura último log no banco
+↓
+Não encontra
+↓
+Feign Client consulta ViaCEP
+↓
+ViaCEP retorna dados do endereço
+↓
+Service calcula covered
+↓
+Service grava log no banco com searchedAt
+↓
+API retorna AddressResponse com source EXTERNAL_API
+↓
+Frontend exibe os dados na tela
+```
+
+### Segunda consulta do mesmo CEP
+
+```text
+Cliente informa o mesmo CEP
+↓
+Frontend envia GET /address/zip/{zipCode}
+↓
+Controller recebe a requisição
+↓
+Service normaliza o CEP
+↓
+Repository encontra o último log no banco
+↓
+Service cria um novo registro de log com searchedAt atualizado
+↓
+API retorna AddressResponse com source DATABASE
+↓
+Frontend exibe os dados na tela
+```
+
+### Consulta paginada dos logs
+
+```text
+Usuário acessa a aba Logs cadastrados
+↓
+Frontend envia GET /address?page=0&size=10
+↓
+Controller recebe os parâmetros de paginação
+↓
+Service consulta o banco usando Pageable
+↓
+Repository retorna Page<AddressQueryLogEntity>
+↓
+Service converte os registros para AddressResponse
+↓
+API retorna AddressPageResponse
+↓
+Frontend renderiza a tabela paginada
+```
+
+---
+
+## 6. Persistência dos logs
+
+Os logs das consultas são gravados na tabela `address_query_log`.
+
+A entidade armazena:
+
+- horário da consulta: `searchedAt`;
+- CEP;
+- logradouro;
+- complemento;
+- unidade;
+- bairro;
+- cidade;
+- UF;
+- estado;
+- região;
+- códigos retornados pela API externa;
+- indicador de cobertura: `covered`.
+
+Cada consulta bem-sucedida gera um novo registro de log.
+
+Quando o CEP já existe na base, a aplicação utiliza o último registro como fonte, cria uma nova entrada de log com `searchedAt` atualizado e retorna os dados ao consumidor.
+
+---
+
+## 7. Paginação
+
+A listagem de logs usa paginação para evitar retornar todos os registros de uma só vez.
+
+Endpoint:
+
+```http
+GET /address?page=0&size=10
+```
+
+Parâmetros:
+
+- `page`: número da página, iniciando em `0`;
+- `size`: quantidade de registros por página.
+
+Exemplos:
+
+```bash
+curl -s "http://localhost:8080/address?page=0&size=10" | jq
+curl -s "http://localhost:8080/address?page=1&size=10" | jq
+curl -s "http://localhost:8080/address?page=0&size=50" | jq
+```
+
+A ordenação é feita pelos registros mais recentes primeiro, usando o campo `searchedAt`.
+
+---
+
+## 8. Performance e índices
+
+Como a aplicação mantém histórico de consultas, pode haver múltiplos registros para o mesmo CEP.
+
+Para evitar degradação conforme o volume de dados cresce, foram considerados índices nos campos usados em busca e ordenação, especialmente:
+
+- CEP;
+- horário da consulta.
+
+Exemplo conceitual:
+
+```sql
+CREATE INDEX idx_address_query_log_cep_searched_at
+ON address_query_log (zip_code, searched_at);
+
+CREATE INDEX idx_address_query_log_searched_at
+ON address_query_log (searched_at);
+```
+
+Esses índices ajudam principalmente nos fluxos:
+
+- buscar o último log de um CEP;
+- listar logs paginados ordenados por data de consulta.
+
+---
+
+## 9. Contract-first e Swagger
+
+O contrato da API é definido em OpenAPI.
+
+Endpoints principais:
+
+```http
+GET /address/zip/{zipCode}
+GET /address?page=0&size=10
+```
+
+Com o backend rodando, a documentação Swagger pode ser acessada em:
+
+```text
+http://localhost:8080/swagger-ui/index.html
+```
+
+O contrato OpenAPI também pode ser acessado em:
+
+```text
+http://localhost:8080/v3/api-docs
+```
+
+A validação do CEP é definida no contrato:
 
 ```yaml
 pattern: '^\d{5}-?\d{3}$'
@@ -169,140 +369,20 @@ minLength: 8
 maxLength: 9
 ```
 
-Formatos aceitos:
-
-```text
-13458870
-13458-870
-```
-
 ---
 
-## 7. Persistência dos logs
-
-Os logs das consultas são gravados na tabela:
-
-```text
-address_query_log
-```
-
-A entidade responsável é:
-
-```text
-AddressQueryLogEntity
-```
-
-Campos principais gravados:
-
-- `searchedAt`: horário da consulta;
-- `cep`: CEP consultado;
-- `logradouro`: logradouro retornado;
-- `complemento`: complemento retornado;
-- `bairro`: bairro retornado;
-- `localidade`: cidade retornada;
-- `uf`: estado retornado;
-- `estado`: nome do estado;
-- `regiao`: região;
-- `ibge`: código IBGE;
-- `gia`: código GIA;
-- `ddd`: DDD;
-- `siafi`: código SIAFI;
-- `covered`: resultado da regra de cobertura.
-
-Cada consulta bem-sucedida gera um novo registro de log.
-
-Quando o CEP já existe no banco, a aplicação busca o último registro daquele CEP, copia seus dados, atualiza o horário da consulta e salva um novo log.
-
----
-
-## 8. Estrutura do backend
-
-```text
-src/main/java/com/f1rst/challenge/address_finder
-├── client
-│   ├── ViaCepAddressFeignClient.java
-│   └── response
-│       └── AddressLogClientResponse.java
-├── controller
-│   ├── AddressController.java
-│   └── ControllerExceptionHandler.java
-├── mapper
-│   └── AddressMapper.java
-├── repository
-│   ├── AddressRepository.java
-│   └── entity
-│       └── AddressQueryLogEntity.java
-├── service
-│   └── AddressService.java
-└── AddressFinderApplication.java
-```
-
----
-
-## 9. Responsabilidades das classes
-
-### `AddressController`
-
-Responsável por receber a requisição HTTP e devolver a resposta adequada.
-
-Tratamentos realizados:
-
-- sucesso: `200 OK`;
-- CEP não encontrado: `404 Not Found`;
-- erro de validação: `400 Bad Request`;
-- erro na API externa: `502 Bad Gateway`.
-
-### `AddressService`
-
-Contém o fluxo principal da aplicação:
-
-- normaliza o CEP;
-- busca o último registro no banco;
-- consulta a API externa quando necessário;
-- calcula cobertura;
-- salva o log da consulta;
-- retorna o DTO de resposta.
-
-### `ViaCepAddressFeignClient`
-
-Cliente HTTP responsável por consultar a API externa ViaCEP.
-
-### `AddressRepository`
-
-Camada de acesso ao banco de dados.
-
-Busca o último registro de um CEP usando ordenação por `searchedAt`.
-
-### `AddressQueryLogEntity`
-
-Representa a tabela de logs de consultas.
-
-### `AddressMapper`
-
-Converte `AddressQueryLogEntity` para `AddressResponse`.
-
-Foi criado porque os nomes da entidade seguem os campos retornados pelo ViaCEP, enquanto o contrato da API expõe nomes mais amigáveis em inglês, como `zipCode`, `street`, `city` e `state`.
-
-### `ControllerExceptionHandler`
-
-Converte exceções de validação geradas pelo contrato OpenAPI em `400 Bad Request`.
-
----
-
-## 10. Aplicação de SOLID
-
-A aplicação utiliza conceitos básicos de SOLID principalmente através da separação de responsabilidades.
+## 10. SOLID aplicado
 
 ### Single Responsibility Principle
 
-Cada classe possui uma responsabilidade principal:
+Cada classe possui uma responsabilidade clara:
 
-- Controller: entrada e saída HTTP;
-- Service: regra e fluxo de negócio;
-- Repository: persistência;
-- Feign Client: comunicação externa;
-- Mapper: conversão entre entidade e response;
-- Entity: representação da tabela de logs.
+- `AddressController`: expõe os endpoints HTTP;
+- `AddressService`: coordena o fluxo de busca, cobertura e persistência;
+- `AddressRepository`: acessa o banco de dados;
+- `ViaCepAddressFeignClient`: encapsula a comunicação com a API externa;
+- `AddressMapper`: converte entidades internas para DTOs de resposta;
+- frontend Angular: responsável apenas pela interação visual com o usuário.
 
 ### Open/Closed Principle
 
@@ -313,189 +393,53 @@ coverage:
   allowed-states: SP,RJ,MG
 ```
 
-Assim, é possível alterar a área de cobertura sem modificar o código da regra principal.
+Isso permite ampliar ou reduzir a cobertura sem alterar a regra no código.
 
 ### Dependency Inversion Principle
 
-A service depende de abstrações/frameworks injetados pelo Spring:
-
-- `AddressRepository`;
-- `ViaCepAddressFeignClient`;
-- `ObjectMapper`.
-
-As dependências são recebidas via construtor, facilitando testes e manutenção.
-
-### Interface Segregation Principle
-
-As responsabilidades ficam separadas em interfaces/classes específicas:
-
-- contrato HTTP gerado pelo OpenAPI;
-- repository do Spring Data;
-- Feign Client para API externa.
-
-### Liskov Substitution Principle
-
-Não há hierarquia complexa no projeto. O princípio é respeitado por não haver heranças artificiais ou substituições inseguras.
+A service depende de componentes injetados pelo Spring, como repository, client e object mapper, em vez de instanciar dependências manualmente.
 
 ---
 
 ## 11. Boas práticas utilizadas
 
-### Contract-first
-
-A API foi definida primeiro no arquivo OpenAPI:
-
-```text
-src/main/resources/openapi/address-api.yaml
-```
-
-A interface e os modelos da API são gerados a partir do contrato.
-
-### Validação no contrato
-
-O formato do CEP é validado pelo OpenAPI:
-
-```yaml
-pattern: '^\d{5}-?\d{3}$'
-```
-
-### Separação em camadas
-
-O projeto separa claramente:
-
-- API/Controller;
-- Service;
-- Client externo;
-- Repository;
-- Entity;
-- Mapper.
-
-### Logs de aplicação
-
-Foram adicionados logs nos principais pontos do fluxo:
-
-- início da busca;
-- endereço encontrado no banco;
-- endereço encontrado na API externa;
-- endereço não encontrado;
-- log salvo com sucesso.
-
-### Testes de integração
-
-Os testes cobrem o fluxo completo do endpoint usando:
-
-- `MockMvc`;
-- `WireMock`;
-- H2 em memória;
-- validações de status HTTP;
-- validação da origem dos dados;
-- validação da persistência dos logs.
-
-### WireMock para API externa
-
-A API externa é mockada nos testes, evitando dependência real do ViaCEP durante a execução dos testes automatizados.
-
-### Normalização de CEP
-
-A aplicação aceita CEP com ou sem hífen, mas normaliza internamente para evitar inconsistências entre busca e persistência.
-
-Exemplo:
-
-```text
-13458-870 → 13458870
-```
-
-### Frontend separado
-
-O frontend Angular consome a API do backend e permite demonstrar visualmente:
-
-- consulta de CEP;
-- retorno dos dados;
-- cobertura;
-- origem da informação.
+- API contract-first com OpenAPI;
+- validação de CEP definida no contrato;
+- separação entre controller, service, repository, client e mapper;
+- uso de Feign Client para integração externa;
+- uso de WireMock nos testes;
+- persistência com Spring Data JPA;
+- paginação usando `Pageable`;
+- normalização do CEP antes da busca;
+- histórico de consultas em banco;
+- logs de aplicação com SLF4J;
+- resposta contendo a origem dos dados (`DATABASE` ou `EXTERNAL_API`);
+- frontend Angular moderno com standalone components e signals;
+- interface com abas para busca e listagem;
+- tratamento visual para loading, erro, cobertura e origem;
+- uso de índices para melhorar busca e ordenação dos logs.
 
 ---
 
-## 12. Testes implementados
+## 12. Como executar
 
-A classe de testes principal é:
-
-```text
-AddressControllerIntegrationTest
-```
-
-Cenários cobertos:
-
-1. Deve buscar endereço na API externa, salvar log e retornar dados.
-2. Deve retornar dados do banco quando o CEP já existir.
-3. Deve criar novo log mesmo quando o dado vem do banco.
-4. Deve retornar `covered: false` quando o estado não estiver configurado como atendido.
-5. Deve retornar `404` quando o CEP não existir.
-6. Deve retornar `400` quando o CEP for inválido.
-7. Deve retornar `502` quando a API externa falhar.
-8. Deve garantir que a API externa não é chamada novamente quando o CEP já está no banco.
-
----
-
-## 13. Como executar o backend
-
-Na raiz do projeto backend:
+### Backend
 
 ```bash
 ./mvnw spring-boot:run
 ```
 
-Ou, se Maven estiver instalado:
+Ou, caso esteja usando Maven instalado localmente:
 
 ```bash
 mvn spring-boot:run
 ```
 
-A aplicação sobe em:
-
-```text
-http://localhost:8080
-```
-
-Swagger UI:
-
-```text
-http://localhost:8080/swagger-ui.html
-```
-
-H2 Console:
-
-```text
-http://localhost:8080/h2-console
-```
-
-Configuração do H2:
-
-```text
-JDBC URL: jdbc:h2:mem:address_finder_db
-User: sa
-Password: vazio
-```
-
----
-
-## 14. Como executar o frontend
-
-Entrar na pasta do frontend:
+### Frontend
 
 ```bash
 cd address-finder-front
-```
-
-Instalar dependências:
-
-```bash
 npm install
-```
-
-Rodar a aplicação:
-
-```bash
 ng serve
 ```
 
@@ -507,80 +451,82 @@ http://localhost:4200
 
 ---
 
-## 15. Exemplos de uso
+## 13. Exemplos de uso
 
-### Buscar CEP válido coberto
+### Buscar CEP coberto
 
 ```bash
 curl -s "http://localhost:8080/address/zip/13458870" | jq
 ```
 
-### Buscar CEP válido fora da cobertura
+### Buscar CEP fora da cobertura
 
 ```bash
 curl -s "http://localhost:8080/address/zip/69900001" | jq
 ```
 
-### Buscar CEP inválido
+### Listar logs paginados
 
 ```bash
-curl -i "http://localhost:8080/address/zip/aaaaaaaa"
+curl -s "http://localhost:8080/address?page=0&size=10" | jq
 ```
 
-### Buscar CEP inexistente
+### Próxima página
 
 ```bash
-curl -i "http://localhost:8080/address/zip/10101101"
+curl -s "http://localhost:8080/address?page=1&size=10" | jq
 ```
 
 ---
 
-## 16. Respostas HTTP
+## 14. Testes
 
-| Status | Descrição |
-|---|---|
-| 200 | Endereço encontrado com sucesso |
-| 400 | CEP inválido |
-| 404 | CEP não encontrado |
-| 502 | Erro ao consultar a API externa |
+Os testes de integração validam os principais fluxos da aplicação:
 
----
+- busca de CEP existente na API externa;
+- gravação do log no banco;
+- segunda busca do mesmo CEP usando base local;
+- criação de novo log para consultas repetidas;
+- CEP fora da cobertura;
+- CEP inexistente retornando `404`;
+- CEP inválido retornando `400`;
+- falha na API externa retornando `502`;
+- listagem paginada dos logs;
+- paginação com diferentes tamanhos de página.
 
-## 17. Diferenciais implementados
-
-Além dos requisitos básicos, o projeto possui:
-
-- abordagem contract-first;
-- Swagger UI;
-- frontend Angular moderno;
-- WireMock nos testes;
-- H2 Console para inspeção dos logs;
-- regra de cobertura configurável;
-- rastreio da origem dos dados com `source: DATABASE` ou `source: EXTERNAL_API`.
+A API externa é mockada com WireMock nos testes.
 
 ---
 
-## 18. Relação com os requisitos do desafio
+## 15. Relação com os requisitos do desafio
 
-| Requisito | Atendimento |
-|---|---|
-| Desenho de solução | Atendido nesta documentação com diagrama Mermaid |
-| Buscar CEP em API externa | Atendido com Feign Client para ViaCEP |
-| Usar API mockada | Atendido nos testes com WireMock |
-| Gravar logs em banco | Atendido com `AddressQueryLogEntity` e H2 |
-| Log conter horário da consulta | Atendido pelo campo `searchedAt` |
-| Log conter dados retornados da API | Atendido pelos campos persistidos do ViaCEP |
-| Usar SOLID básico | Atendido pela separação entre controller, service, repository, client e mapper |
-| Repositório público no Git | Atendido pelo repositório público informado |
-| Java 11 ou superior | Atendido com Java 21 |
-| Banco relacional ou não relacional | Atendido com H2 relacional |
+| Requisito | Atendido? | Como foi atendido |
+|---|---:|---|
+| Desenho de solução | Sim | Diagrama Mermaid nesta documentação |
+| Buscar CEP em API externa | Sim | Integração com ViaCEP via Feign Client |
+| API mockada | Sim | WireMock nos testes |
+| Logs gravados em banco | Sim | Entidade `AddressQueryLogEntity` |
+| Horário da consulta | Sim | Campo `searchedAt` |
+| Dados retornados da API | Sim | Campos persistidos na entidade de log |
+| Conceitos básicos de SOLID | Sim | Separação de responsabilidades e dependências injetadas |
+| Repositório público no Git | Sim | Projeto publicado no GitHub |
+| Java 11 ou superior | Sim | Java 21 |
+| Banco relacional ou não relacional | Sim | H2 com Spring Data JPA |
 
 ---
 
-## 19. Resumo para apresentação
+## 16. Resumo para apresentação
 
-A aplicação é um verificador de cobertura por CEP.
+A aplicação implementa uma solução simples e demonstrável para verificação de cobertura por CEP.
 
-O usuário informa um CEP pelo frontend Angular. O backend Spring Boot recebe a requisição por um endpoint definido via OpenAPI. A aplicação primeiro verifica se já existe um log anterior daquele CEP no banco local. Se existir, reutiliza esses dados, grava uma nova consulta e retorna o resultado com origem `DATABASE`. Se não existir, consulta a API externa ViaCEP, calcula a cobertura com base nos estados configurados, grava o log em banco e retorna o resultado com origem `EXTERNAL_API`.
+O fluxo principal mostra:
 
-Essa solução atende ao desafio porque realiza busca de CEP em API externa, utiliza mock com WireMock nos testes, grava os logs em banco com horário e dados retornados, aplica separação de responsabilidades e expõe uma API documentada por contrato OpenAPI.
+1. entrada do CEP pelo frontend;
+2. busca na base local;
+3. fallback para API externa quando necessário;
+4. cálculo de cobertura configurável por UF;
+5. gravação de log da consulta;
+6. retorno dos dados ao usuário;
+7. listagem paginada dos logs gravados.
+
+Esse desenho atende aos requisitos obrigatórios do desafio e adiciona uma interface visual para facilitar a demonstração da solução.
