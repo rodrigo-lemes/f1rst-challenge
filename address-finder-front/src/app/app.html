@@ -3,7 +3,7 @@
     <div class="hero-content">
       <span class="eyebrow">Address Finder</span>
 
-      <h1>Verificador de cobertura por CEP</h1>
+      <h1>Verifique a cobertura dos nossos serviços em seu ESTADO!</h1>
 
       <p>
         Informe um CEP para consultar o endereço, verificar se está dentro da área
@@ -11,35 +11,145 @@
         externa.
       </p>
 
-      <form class="search-card" (ngSubmit)="searchAddress()">
-        <label for="zipCode">CEP</label>
+      <nav class="tabs">
+        <button
+          type="button"
+          class="tab-button"
+          [class.active]="activeTab() === 'SEARCH'"
+          (click)="showSearchTab()"
+        >
+          Buscar CEP
+        </button>
 
-        <div class="input-group">
-          <input
-            id="zipCode"
-            name="zipCode"
-            type="text"
-            [ngModel]="zipCode()"
-            (ngModelChange)="zipCode.set($event)"
-            placeholder="Ex: 13458870 ou 13458-870"
-            maxlength="9"
-          />
+        <button
+          type="button"
+          class="tab-button"
+          [class.active]="activeTab() === 'LIST'"
+          (click)="showListTab()"
+        >
+          Logs cadastrados
+        </button>
+      </nav>
 
-          <button type="submit" [disabled]="loading()">
-            {{ loading() ? 'Buscando...' : 'Buscar' }}
+      <section *ngIf="activeTab() === 'SEARCH'">
+        <form class="search-card" (ngSubmit)="searchAddress()">
+          <label for="zipCode">CEP</label>
+
+          <div class="input-group">
+            <input
+              id="zipCode"
+              name="zipCode"
+              type="text"
+              [ngModel]="zipCode()"
+              (ngModelChange)="zipCode.set($event)"
+              placeholder="Ex: 13458870 ou 13458-870"
+              maxlength="9"
+            />
+
+            <button type="submit" [disabled]="loading()">
+              {{ loading() ? 'Buscando...' : 'Buscar' }}
+            </button>
+          </div>
+
+          <small>Formatos aceitos: 00000000 ou 00000-000</small>
+        </form>
+
+        <div *ngIf="errorMessage()" class="alert">
+          {{ errorMessage() }}
+        </div>
+      </section>
+
+      <section *ngIf="activeTab() === 'LIST'" class="list-section">
+        <div class="list-header">
+          <div>
+            <span class="section-label">Histórico</span>
+            <h2>Logs cadastrados</h2>
+          </div>
+
+          <button type="button" class="secondary-button" (click)="loadAddresses()">
+            {{ listLoading() ? 'Atualizando...' : 'Atualizar' }}
           </button>
         </div>
 
-        <small>Formatos aceitos: 00000000 ou 00000-000</small>
-      </form>
+        <div *ngIf="listErrorMessage()" class="alert">
+          {{ listErrorMessage() }}
+        </div>
 
-      <div *ngIf="errorMessage()" class="alert">
-        {{ errorMessage() }}
-      </div>
+        <div *ngIf="listLoading()" class="loading-box">
+          Carregando logs...
+        </div>
+
+        <ng-container *ngIf="addressPage() as page">
+          <div *ngIf="!listLoading() && page.content.length === 0" class="empty-box">
+            Nenhum log encontrado.
+          </div>
+
+          <div *ngIf="!listLoading() && page.content.length > 0" class="table-card">
+            <table>
+              <thead>
+              <tr>
+                <th>CEP</th>
+                <th>Logradouro</th>
+                <th>Cidade</th>
+                <th>UF</th>
+                <th>Cobertura</th>
+                <th>Origem</th>
+              </tr>
+              </thead>
+
+              <tbody>
+              <tr *ngFor="let item of page.content">
+                <td>{{ item.zipCode }}</td>
+                <td>{{ item.street || '-' }}</td>
+                <td>{{ item.city }}</td>
+                <td>{{ item.state }}</td>
+                <td>
+                  <span
+                    class="mini-badge"
+                    [class.covered]="item.covered"
+                    [class.not-covered]="!item.covered"
+                  >
+                    {{ item.covered ? 'Coberto' : 'Não coberto' }}
+                  </span>
+                </td>
+                <td>
+                  {{ item.source === 'DATABASE' ? 'Base local' : 'API externa' }}
+                </td>
+              </tr>
+              </tbody>
+            </table>
+
+            <div class="pagination">
+              <button
+                type="button"
+                class="secondary-button"
+                [disabled]="currentPage() === 0 || listLoading()"
+                (click)="previousPage()"
+              >
+                Anterior
+              </button>
+
+              <span>
+                Página {{ page.page + 1 }} de {{ page.totalPages }}
+                · {{ page.totalElements }} registros
+              </span>
+
+              <button
+                type="button"
+                class="secondary-button"
+                [disabled]="page.last || listLoading()"
+                (click)="nextPage()"
+              >
+                Próxima
+              </button>
+            </div>
+          </div>
+        </ng-container>
+      </section>
     </div>
   </section>
 
-  <section *ngIf="address() as address" class="result-wrapper">
+  <section *ngIf="activeTab() === 'SEARCH' && address() as address" class="result-wrapper">
     <article class="result-card">
       <header>
         <div>

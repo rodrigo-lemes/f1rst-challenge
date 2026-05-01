@@ -8,3 +8,12 @@ export interface AddressResponse {
   covered: boolean;
   source: 'DATABASE' | 'EXTERNAL_API';
 }
+
+export interface AddressPageResponse {
+  content: AddressResponse[];
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  last: boolean;
+}
