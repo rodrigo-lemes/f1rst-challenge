@@ -53,7 +53,7 @@ public class AddressService {
     }
 
     private Optional<AddressResponse> getAddressFromDatabase(String zipCode) {
-        Optional<AddressQueryLogEntity> databaseAddressData = addressRepository.findByCep(zipCode);
+        Optional<AddressQueryLogEntity> databaseAddressData = addressRepository.findFirstByCepOrderBySearchedAtDesc(zipCode);
 
         if (databaseAddressData.isEmpty()) {
             log.info("Address not found in database for zipCode={}", zipCode);

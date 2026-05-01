@@ -9,5 +9,5 @@ import java.util.Optional;
 @Repository
 public interface AddressRepository extends JpaRepository<AddressQueryLogEntity, Long> {
 
-    Optional<AddressQueryLogEntity> findByCep(String zipCode);
+    Optional<AddressQueryLogEntity> findFirstByCepOrderBySearchedAtDesc(String zipCode);
 }
