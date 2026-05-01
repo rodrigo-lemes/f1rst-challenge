@@ -27,3 +27,6 @@ spring:
 client:
   viacep:
     url: https://viacep.com.br
+
+coverage:
+  allowed-states: SP,RJ,MG

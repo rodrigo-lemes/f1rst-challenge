@@ -4,6 +4,10 @@ import com.f1rst.challenge.address_finder.repository.entity.AddressQueryLogEntit
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.Optional;
+
 @Repository
 public interface AddressRepository extends JpaRepository<AddressQueryLogEntity, Long> {
+
+    Optional<AddressQueryLogEntity> findByCep(String zipCode);
 }

@@ -3,7 +3,7 @@ openapi: 3.0.3
 info:
   title: Address Finder API
   version: 1.0.0
-  description: API contract-first para consulta de CEP em API externa e gravação do log em banco.
+  description: API contract-first para consulta de CEP, verificação de cobertura e persistência do resultado em banco.
 
 servers:
   - url: http://localhost:8080
@@ -11,61 +11,151 @@ servers:
 
 tags:
   - name: Address
-    description: Operações relacionadas à consulta de CEP.
+    description: Operações relacionadas à consulta de CEP e verificação de cobertura.
 
 paths:
-  /address/zip:
-    post:
+  /address/zip/{zipCode}:
+    get:
       tags:
         - Address
-      summary: Consulta CEP e grava log
+      summary: Busca endereço por CEP
       description: >
-        Recebe um CEP, consulta uma API externa ou mockada, e grava em banco
-        o horário da consulta e os dados retornados pela API consultada.
-        A operação não retorna os dados do endereço ao consumidor.
-      operationId: genAddressData
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AddressZipRequest'
-            examples:
-              validRequestWithMask:
-                summary: CEP válido com máscara
-                value:
-                  zipCode: "13458-870"
-              validRequestWithoutMask:
-                summary: CEP válido sem máscara
-                value:
-                  zipCode: "13458870"
+        Recebe um CEP e busca os dados do endereço. A aplicação consulta primeiro
+        a base de dados local. Caso o CEP não exista na base, consulta uma API externa
+        ou mockada, verifica se o endereço está dentro da área de cobertura configurada,
+        persiste o resultado em banco e retorna os dados ao consumidor.
+      operationId: getAddressByZipCode
+      parameters:
+        - name: zipCode
+          in: path
+          required: true
+          description: CEP a ser consultado. Aceita formato com ou sem hífen.
+          schema:
+            type: string
+            example: "13458-870"
+            minLength: 8
+            maxLength: 9
+            pattern: '^\d{5}-?\d{3}$'
       responses:
-        '204':
-          description: Consulta realizada e log gravado com sucesso, sem corpo na resposta.
+        '200':
+          description: Endereço encontrado com sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddressResponse'
+              examples:
+                addressFromDatabase:
+                  summary: Endereço encontrado na base local
+                  value:
+                    zipCode: "13458-870"
+                    street: "Estrada do Barreirinho"
+                    complement: "até 1750 - lado par"
+                    neighborhood: "Residencial Mac Knight"
+                    city: "Santa Bárbara D'Oeste"
+                    state: "SP"
+                    covered: true
+                    coverageStatus: "COVERED"
+                    source: "DATABASE"
+                    message: "Endereço dentro da área de cobertura."
+
+                addressFromExternalApi:
+                  summary: Endereço encontrado na API externa
+                  value:
+                    zipCode: "01001-000"
+                    street: "Praça da Sé"
+                    complement: "lado ímpar"
+                    neighborhood: "Sé"
+                    city: "São Paulo"
+                    state: "SP"
+                    covered: true
+                    coverageStatus: "COVERED"
+                    source: "EXTERNAL_API"
+                    message: "Endereço dentro da área de cobertura."
+
+                notCoveredAddress:
+                  summary: Endereço fora da área de cobertura
+                  value:
+                    zipCode: "20040-020"
+                    street: "Rua da Quitanda"
+                    complement: ""
+                    neighborhood: "Centro"
+                    city: "Rio de Janeiro"
+                    state: "RJ"
+                    covered: false
+                    coverageStatus: "NOT_COVERED"
+                    source: "EXTERNAL_API"
+                    message: "Endereço fora da área de cobertura."
 
         '400':
           description: Requisição inválida ou CEP com formato inválido.
 
         '404':
-          description: CEP válido em formato, mas não encontrado na API externa.
-
-        '500':
-          description: Erro interno ao processar ou gravar a consulta.
+          description: CEP válido em formato, mas não encontrado na base local nem na API externa.
 
         '502':
           description: Erro ao consultar a API externa de endereço.
 
 components:
   schemas:
-    AddressZipRequest:
+    AddressResponse:
       type: object
       required:
         - zipCode
+        - city
+        - state
+        - covered
+        - source
       properties:
         zipCode:
           type: string
-          description: CEP a ser consultado. Aceita formato com ou sem hífen.
+          description: CEP consultado.
           example: "13458-870"
-          minLength: 8
-          maxLength: 9
-          pattern: '^\d{5}-?\d{3}$'
+
+        street:
+          type: string
+          description: Logradouro retornado pela base local ou API externa.
+          example: "Estrada do Barreirinho"
+
+        complement:
+          type: string
+          description: Complemento retornado pela base local ou API externa.
+          example: "até 1750 - lado par"
+
+        neighborhood:
+          type: string
+          description: Bairro retornado pela base local ou API externa.
+          example: "Residencial Mac Knight"
+
+        city:
+          type: string
+          description: Cidade retornada pela base local ou API externa.
+          example: "Santa Bárbara D'Oeste"
+
+        state:
+          type: string
+          description: Estado retornado pela base local ou API externa.
+          example: "SP"
+
+        covered:
+          type: boolean
+          description: Indica se o endereço está dentro da área de cobertura configurada.
+          example: true
+
+        source:
+          $ref: '#/components/schemas/AddressSource'
+
+    CoverageStatus:
+      type: string
+      description: Status da cobertura do endereço consultado.
+      enum:
+        - COVERED
+        - NOT_COVERED
+      example: "COVERED"
+
+    AddressSource:
+      type: string
+      description: Origem dos dados retornados.
+      enum:
+        - DATABASE
+        - EXTERNAL_API
+      example: "DATABASE"

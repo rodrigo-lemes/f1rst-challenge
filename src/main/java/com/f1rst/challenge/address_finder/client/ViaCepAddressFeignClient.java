@@ -1,6 +1,6 @@
 package com.f1rst.challenge.address_finder.client;
 
-import com.f1rst.challenge.address_finder.client.response.AddressLogResponse;
+import com.f1rst.challenge.address_finder.client.response.AddressLogClientResponse;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -9,8 +9,8 @@ import org.springframework.web.bind.annotation.PathVariable;
         name = "addressFeignClient",
         url = "${client.viacep.url}"
 )
-public interface AddressFeignClient {
+public interface ViaCepAddressFeignClient {
 
     @GetMapping("/ws/{zipCode}/json/")
-    AddressLogResponse getAddressData(@PathVariable("zipCode") String zipCode);
+    public AddressLogClientResponse getAddressData(@PathVariable("zipCode") String zipCode);
 }

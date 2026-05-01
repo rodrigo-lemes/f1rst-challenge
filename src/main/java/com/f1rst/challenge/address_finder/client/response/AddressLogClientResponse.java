@@ -7,7 +7,7 @@ import java.time.LocalDateTime;
 
 @Getter
 @Setter
-public class AddressLogResponse {
+public class AddressLogClientResponse {
 
     private LocalDateTime searchedAt;
 
@@ -38,5 +38,7 @@ public class AddressLogResponse {
     private String siafi;
 
     private String erro;
+
+    private Boolean covered;
 
 }

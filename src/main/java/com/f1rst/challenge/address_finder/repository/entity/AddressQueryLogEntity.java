@@ -57,4 +57,7 @@ public class AddressQueryLogEntity {
 
     @Column(name = "siafi_code", length = 20)
     private String siafi;
+
+    @Column(name = "covered")
+    private Boolean covered;
 }
