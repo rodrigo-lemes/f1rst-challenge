@@ -39,25 +39,39 @@ public class AddressService {
     }
 
     public AddressResponse getAddressByZipCode(String zipCode) {
-        zipCode = normalizeZipCode(zipCode);
-        log.info("Searching for zipCode={}", zipCode);
+        String normalizedZipCode = normalizeZipCode(zipCode);
 
-        Optional<AddressQueryLogEntity> dataBaseAddressData = addressRepository.findByCep(zipCode);
+        log.info("Searching for zipCode={}", normalizedZipCode);
 
-        if (dataBaseAddressData.isPresent()) {
-            log.info("Address found in database for zipCode={}", zipCode);
+        Optional<AddressResponse> databaseAddress = getAddressFromDatabase(normalizedZipCode);
 
-            return toAddressResponse(
-                    dataBaseAddressData.get(),
-                    AddressSource.DATABASE
-            );
+        if (databaseAddress.isPresent()) {
+            return databaseAddress.get();
         }
 
-        AddressLogClientResponse onlineData =
-                addressFeignClient.getAddressData(zipCode);
+        return getAddressFromExternalApi(normalizedZipCode);
+    }
+
+    private Optional<AddressResponse> getAddressFromDatabase(String zipCode) {
+        Optional<AddressQueryLogEntity> databaseAddressData = addressRepository.findByCep(zipCode);
+
+        if (databaseAddressData.isEmpty()) {
+            log.info("Address not found in database for zipCode={}", zipCode);
+            return Optional.empty();
+        }
+
+        log.info("Address found in database for zipCode={}", zipCode);
+
+        AddressResponse response = toAddressResponse(databaseAddressData.get(), AddressSource.DATABASE);
+
+        return Optional.of(response);
+    }
+
+    private AddressResponse getAddressFromExternalApi(String zipCode) {
+        AddressLogClientResponse onlineData = addressFeignClient.getAddressData(zipCode);
 
         if (onlineData == null || "true".equalsIgnoreCase(onlineData.getErro())) {
-            log.info("Address not found for zipCode={}", zipCode);
+            log.info("Address not found in external API for zipCode={}", zipCode);
             throw new IllegalArgumentException("Address not found for zipCode: " + zipCode);
         }
 
@@ -66,21 +80,15 @@ public class AddressService {
         onlineData.setSearchedAt(LocalDateTime.now());
         onlineData.setCovered(allowedStates.contains(onlineData.getUf()));
 
-        AddressQueryLogEntity entity = objectMapper.convertValue(
-                onlineData,
-                AddressQueryLogEntity.class
-        );
+        AddressQueryLogEntity entity = objectMapper.convertValue(onlineData, AddressQueryLogEntity.class);
 
         entity.setCep(normalizeZipCode(entity.getCep()));
 
         entity = addressRepository.save(entity);
 
-        log.info("Address saved successfully for zipCode={}", onlineData.getCep());
+        log.info("Address saved successfully for zipCode={}", entity.getCep());
 
-        return toAddressResponse(
-                entity,
-                AddressSource.EXTERNAL_API
-        );
+        return toAddressResponse(entity, AddressSource.EXTERNAL_API);
     }
 
     private String normalizeZipCode(String zipCode) {
