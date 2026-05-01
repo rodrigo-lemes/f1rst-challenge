@@ -110,7 +110,7 @@ public class AddressControllerIntegrationTest {
                 .andExpect(jsonPath("$.covered").value(true))
                 .andExpect(jsonPath("$.source").value("DATABASE"));
 
-        assertEquals(1, addressRepository.count());
+        assertEquals(2, addressRepository.count());
 
         WireMock.verify(1, getRequestedFor(urlEqualTo("/ws/13458870/json/")));
     }

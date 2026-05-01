@@ -62,7 +62,13 @@ public class AddressService {
 
         log.info("Address found in database for zipCode={}", zipCode);
 
-        AddressResponse response = toAddressResponse(databaseAddressData.get(), AddressSource.DATABASE);
+        var newRegistry = objectMapper.convertValue(databaseAddressData.get(), AddressQueryLogEntity.class);
+
+        newRegistry.setId(null);
+        newRegistry.setSearchedAt(LocalDateTime.now());
+        newRegistry = addressRepository.save(newRegistry);
+
+        AddressResponse response = toAddressResponse(newRegistry, AddressSource.DATABASE);
 
         return Optional.of(response);
     }
