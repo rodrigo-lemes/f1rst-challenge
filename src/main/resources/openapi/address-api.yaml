@@ -3,7 +3,7 @@ openapi: 3.0.3
 info:
   title: Address Finder API
   version: 1.0.0
-  description: API contract-first para consulta de CEP, verificação de cobertura e persistência do resultado em banco.
+  description: API contract-first para consulta de CEP, verificação de cobertura e gravação de logs em banco.
 
 servers:
   - url: http://localhost:8080
@@ -23,7 +23,7 @@ paths:
         Recebe um CEP e busca os dados do endereço. A aplicação consulta primeiro
         a base de dados local. Caso o CEP não exista na base, consulta uma API externa
         ou mockada, verifica se o endereço está dentro da área de cobertura configurada,
-        persiste o resultado em banco e retorna os dados ao consumidor.
+        grava o log da consulta em banco e retorna os dados ao consumidor.
       operationId: getAddressByZipCode
       parameters:
         - name: zipCode
@@ -47,44 +47,38 @@ paths:
                 addressFromDatabase:
                   summary: Endereço encontrado na base local
                   value:
-                    zipCode: "13458-870"
+                    zipCode: "13458870"
                     street: "Estrada do Barreirinho"
                     complement: "até 1750 - lado par"
                     neighborhood: "Residencial Mac Knight"
                     city: "Santa Bárbara D'Oeste"
                     state: "SP"
                     covered: true
-                    coverageStatus: "COVERED"
                     source: "DATABASE"
-                    message: "Endereço dentro da área de cobertura."
 
                 addressFromExternalApi:
                   summary: Endereço encontrado na API externa
                   value:
-                    zipCode: "01001-000"
+                    zipCode: "01001000"
                     street: "Praça da Sé"
                     complement: "lado ímpar"
                     neighborhood: "Sé"
                     city: "São Paulo"
                     state: "SP"
                     covered: true
-                    coverageStatus: "COVERED"
                     source: "EXTERNAL_API"
-                    message: "Endereço dentro da área de cobertura."
 
                 notCoveredAddress:
                   summary: Endereço fora da área de cobertura
                   value:
-                    zipCode: "20040-020"
+                    zipCode: "20040020"
                     street: "Rua da Quitanda"
                     complement: ""
                     neighborhood: "Centro"
                     city: "Rio de Janeiro"
                     state: "RJ"
                     covered: false
-                    coverageStatus: "NOT_COVERED"
                     source: "EXTERNAL_API"
-                    message: "Endereço fora da área de cobertura."
 
         '400':
           description: Requisição inválida ou CEP com formato inválido.
@@ -109,7 +103,7 @@ components:
         zipCode:
           type: string
           description: CEP consultado.
-          example: "13458-870"
+          example: "13458870"
 
         street:
           type: string
@@ -143,14 +137,6 @@ components:
 
         source:
           $ref: '#/components/schemas/AddressSource'
-
-    CoverageStatus:
-      type: string
-      description: Status da cobertura do endereço consultado.
-      enum:
-        - COVERED
-        - NOT_COVERED
-      example: "COVERED"
 
     AddressSource:
       type: string
